@@ -1,5 +1,6 @@
 package com.example.gatewayredis.service;
 
+import com.example.gatewayredis.redis.CreditPeriod;
 import com.example.gatewayredis.redis.CreditRedis;
 
 import java.util.Optional;
@@ -11,7 +12,9 @@ import java.util.Optional;
  */
 public interface ICreditService
 {
-    void saveCredit(String apiKey, Integer quote);
+    void saveCredit(String apiKey, Integer quote, CreditPeriod period);
+
+    void updateCredit(String apiKey, int creditConsumer);
 
     Optional<CreditRedis> getCredit(String apiKey);
 }

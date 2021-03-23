@@ -1,18 +1,19 @@
 package com.example.gatewayredis.filter;
 
 import com.example.gatewayredis.service.ICreditService;
+import com.example.gatewayredis.util.DateUtils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
-import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
-import org.springframework.cloud.gateway.filter.factory.RequestRateLimiterGatewayFilterFactory.Config;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 /**
  * @author sa
@@ -30,20 +31,30 @@ public class CreditValidationFilter implements GlobalFilter
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain)
     {
         ServerHttpRequest request = exchange.getRequest();
-        String apiKey = request.getHeaders().getFirst("Authorization");
-        Integer creditConsumer = Integer.valueOf(request.getHeaders().getFirst("credit"));
-        var credit = creditService.getCredit(apiKey);
+        List<String> apiKeys = request.getHeaders().get("Authorization");
+        List<String> creditKeys = request.getHeaders().get("credit");
+
+        if (CollectionUtils.isEmpty(apiKeys) || CollectionUtils.isEmpty(creditKeys))
+        {
+            exchange.getResponse().setStatusCode(HttpStatus.BAD_REQUEST);
+            return exchange.getResponse().setComplete();
+        }
+
+        Integer creditConsumer = Integer.valueOf(creditKeys.get(0));
+        var credit = creditService.getCredit(apiKeys.get(0));
+
         if (!credit.isPresent())
         {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
-        else if (credit.get().getRemainingQuote() <= 0)
+        else if (DateUtils.isUpToDate(credit.get().getExpirationTime()) && credit.get().getRemainingQuote() <= 0)
         {
             exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
             return exchange.getResponse().setComplete();
         }
-        creditService.saveCredit(apiKey, credit.get().getRemainingQuote() - creditConsumer);
+
+        creditService.updateCredit(apiKeys.get(0), creditConsumer);
         return chain.filter(exchange);
     }
 }

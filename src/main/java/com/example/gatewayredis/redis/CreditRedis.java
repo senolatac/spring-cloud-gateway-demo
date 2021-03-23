@@ -14,10 +14,13 @@ import org.springframework.data.redis.core.RedisHash;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@RedisHash(value = "ApiKey", timeToLive = 86400) //1 day
+@RedisHash(value = "ApiKey")
 public class CreditRedis
 {
     @Id
     private String id;//apiKey
+    private Integer maxQuote;
     private Integer remainingQuote;
+    private Long expirationTime;//Don't use time-to-live, we need it always
+    private Long period;//Refresh it on every day, every hour...
 }
