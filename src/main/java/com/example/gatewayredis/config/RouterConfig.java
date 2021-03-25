@@ -1,6 +1,10 @@
 package com.example.gatewayredis.config;
 
 import com.example.gatewayredis.filter.CustomGatewayFilter;
+import com.example.gatewayredis.request.ApiRoute;
+import com.example.gatewayredis.request.Placeholder;
+import com.example.gatewayredis.request.RouterService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
 import org.springframework.cloud.gateway.route.RouteLocator;
@@ -9,32 +13,42 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 /**
  * @author sa
  * @date 22.03.2021
  * @time 15:23
  */
 @Configuration
+@RequiredArgsConstructor
 public class RouterConfig
 {
+    private final RouterService routerService;
 
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder)
     {
-        return builder.routes()
-                //localhost:8080/todos/1
-                .route("path_route", r -> r.path("/todos/**")
-                        .filters(f -> f.addRequestHeader("credit", "3")
-                                .filter(new CustomGatewayFilter().apply(new CustomGatewayFilter.Config())))
-                        .uri("https://jsonplaceholder.typicode.com"))
-                //POST localhost:8080/posts
-                //so there is not extra parameter for request-method (POST, GET...)
-                .route("post_route_example", r -> r.path("/posts")
-                        .filters(f -> f.addRequestHeader("credit", "5"))
-                        .uri("https://jsonplaceholder.typicode.com"))
+        //Fetch all routes externally.
+        List<Placeholder> placeholders = routerService.findAllPlaceholders();
+        System.out.println(placeholders.size());
+
+        RouteLocatorBuilder.Builder routes = builder.routes();
+
+        List<ApiRoute> routeList = routerService.findAllRoutes();
+
+        for (ApiRoute route : routeList)
+        {
+            routes.route(route.getId(), r -> r.path(route.getPath())
+                    .filters(f -> f.addRequestHeader("credit", String.valueOf(route.getCredit())))
+                    .uri(route.getUri()));
+        }
+
+        return routes
                 //localhost:8080/get/1
                 .route("rewrite_path_route", r -> r.path("/get/**")
                         .filters(f -> f.addRequestHeader("credit", "3")
+                                .filter(new CustomGatewayFilter().apply(new CustomGatewayFilter.Config()))
                                 .rewritePath("/get/(?<segment>.*)", "/todos/${segment}"))
                         .uri("https://jsonplaceholder.typicode.com"))
                 //localhost:8080/anything/1
